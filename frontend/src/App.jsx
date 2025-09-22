@@ -9,26 +9,35 @@ function App() {
 
   // Obtener horarios del backend
   useEffect(() => {
-    fetch("https://tuapi.com/horarios")
+    fetch("/api/horarios")
       .then((res) => res.json())
       .then((data) => setHorariosDisponibles(data))
-      .catch(() => setHorariosDisponibles({}))
+      .catch(() => {
+        // fallback: horarios 8-14
+        const hoy = new Date()
+        const proximoMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)
+        const diasMes = new Date(proximoMes.getFullYear(), proximoMes.getMonth() + 1, 0).getDate()
+        const defaultData = {}
+        for (let d = 1; d <= diasMes; d++) {
+          const horas = []
+          for (let h = 8; h <= 14; h++) {
+            const horaStr = h.toString().padStart(2, "0") + ":00"
+            horas.push({ hora: horaStr, permitido: true })
+          }
+          defaultData[d] = horas
+        }
+        setHorariosDisponibles(defaultData)
+      })
   }, [])
 
-  // Generar calendario del próximo mes
   const hoy = new Date()
   const proximoMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1)
   const diasEnMes = new Date(proximoMes.getFullYear(), proximoMes.getMonth() + 1, 0).getDate()
   const dias = Array.from({ length: diasEnMes }, (_, i) => i + 1)
 
   const handleReservar = () => {
-    const payload = {
-      dia: diaSeleccionado,
-      hora: horaSeleccionada,
-      ...formData,
-    }
-
-    fetch("https://tuapi.com/reservar", {
+    const payload = { dia: diaSeleccionado, hora: horaSeleccionada, ...formData }
+    fetch("/api/reservar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -42,52 +51,51 @@ function App() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto font-sans">
-      <h1 className="text-2xl font-bold mb-4">Reservar Turno</h1>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6 font-sans">
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">Reservar Turno</h1>
 
       {/* Calendario */}
-      <div className="grid grid-cols-7 gap-2">
-        {dias.map((dia) => (
+      <div className="grid grid-cols-7 gap-2 mb-6">
+        {dias.map((d) => (
           <button
-            key={dia}
-            className={`p-2 rounded border ${
-              diaSeleccionado === dia ? "bg-blue-600 text-white" : "bg-gray-100"
-            }`}
+            key={d}
+            className={`p-3 rounded-full border transition-colors font-medium
+              ${diaSeleccionado === d ? "bg-blue-600 text-white" : "bg-white hover:bg-blue-100"}
+            `}
             onClick={() => {
-              setDiaSeleccionado(dia)
+              setDiaSeleccionado(d)
               setHoraSeleccionada(null)
               setMostrarFormulario(false)
             }}
           >
-            {dia}
+            {d}
           </button>
         ))}
       </div>
 
       {/* Horarios */}
       {diaSeleccionado && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-2">
+        <div className="mb-6 w-full max-w-lg">
+          <h2 className="text-xl font-semibold mb-3">
             Horarios para el {diaSeleccionado}/{proximoMes.getMonth() + 1}
           </h2>
           <div className="flex flex-wrap gap-2">
-            {(horariosDisponibles[diaSeleccionado] || []).map((hora) => (
+            {(horariosDisponibles[diaSeleccionado] || []).map((h) => (
               <button
-                key={hora.hora}
-                disabled={!hora.permitido}
-                className={`px-3 py-2 rounded border ${
-                  horaSeleccionada === hora.hora
-                    ? "bg-blue-600 text-white"
-                    : hora.permitido
-                    ? "bg-gray-100"
-                    : "bg-gray-300 cursor-not-allowed"
-                }`}
+                key={h.hora}
+                disabled={!h.permitido}
+                className={`px-4 py-2 rounded-md font-medium border transition-colors
+                  ${!h.permitido ? "bg-gray-200 cursor-not-allowed" : "bg-green-100 hover:bg-green-200"}
+                  ${horaSeleccionada === h.hora ? "bg-blue-500 text-white" : ""}
+                `}
                 onClick={() => {
-                  setHoraSeleccionada(hora.hora)
-                  setMostrarFormulario(true)
+                  if (h.permitido) {
+                    setHoraSeleccionada(h.hora)
+                    setMostrarFormulario(true)
+                  }
                 }}
               >
-                {hora.hora}
+                {h.hora}
               </button>
             ))}
           </div>
@@ -96,25 +104,25 @@ function App() {
 
       {/* Formulario */}
       {mostrarFormulario && horaSeleccionada && (
-        <div className="mt-6 border rounded p-4 shadow-md bg-white">
-          <h3 className="text-lg font-semibold mb-3">Datos de la reserva</h3>
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
+          <h3 className="text-lg font-semibold mb-4">Datos de la reserva</h3>
           <input
             type="text"
             placeholder="Nombre"
-            className="w-full p-2 border rounded mb-2"
+            className="w-full p-3 border rounded mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
             value={formData.nombre}
             onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
           />
           <input
             type="tel"
             placeholder="Teléfono"
-            className="w-full p-2 border rounded mb-3"
+            className="w-full p-3 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400"
             value={formData.telefono}
             onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
           />
           <button
             onClick={handleReservar}
-            className="w-full bg-blue-600 text-white p-2 rounded"
+            className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
           >
             Confirmar Reserva
           </button>
